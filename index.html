@@ -97,6 +97,8 @@ label{display:block;font-size:13px;font-weight:700;color:var(--muted);margin:12p
 .res .me{outline:2px solid var(--yellow)}
 .res em{font-style:normal;color:var(--muted);font-size:13px;margin-left:auto}
 .res b{color:var(--yellow);min-width:44px;text-align:right}
+.live{position:absolute;left:50%;top:50%;transform:translate(-50%,-10%);width:min(92vw,380px);background:rgba(30,14,72,.88);border:2px solid var(--line);border-radius:18px;padding:12px}
+.live .res{margin:0}.live .res div{padding:7px 10px;font-size:14px}
 .h2{font-size:34px;font-weight:900;font-style:italic;color:var(--yellow);text-align:center;line-height:1}
 .sub{text-align:center;color:var(--muted);font-size:13px;font-weight:700;margin-top:10px}
 .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:var(--pink);padding:10px 16px;border-radius:12px;font-weight:700;z-index:20;max-width:90%;text-align:center}
@@ -153,6 +155,7 @@ label{display:block;font-size:13px;font-weight:700;color:var(--muted);margin:12p
   <div class="speed"><span id="spd">0</span> <small>km/h</small></div>
   <div class="feed" id="feed"></div>
   <div class="banner" id="banner"></div>
+  <div class="live hidden" id="live"><div class="sub" style="margin:0 0 6px">LLEGADAS</div><div class="res" id="liveList"></div></div>
   <button id="mute">🔊</button>
 </div>
 
@@ -171,7 +174,8 @@ label{display:block;font-size:13px;font-weight:700;color:var(--muted);margin:12p
       <button class="btn b-lime" id="btnNext">Otra carrera</button>
       <button class="btn b-ghost" id="btnToLobby">Volver a la sala</button>
     </div>
-    <div class="wait hidden" id="resWait">Esperando al host…</div>
+    <div class="wait hidden" id="resWait">Esperando a que el host arranque otra…</div>
+    <button class="btn b-ghost" id="btnResLeave">Salir de la sala</button>
   </div>
 </section>
 
@@ -412,6 +416,7 @@ $('#btnBot').onclick=()=>addBot();
 $('#btnStart').onclick=()=>{au();hostStartRace()};
 $('#btnNext').onclick=()=>hostStartRace();
 $('#btnToLobby').onclick=()=>{endRace();broadcastLobby();show('lobby')};
+$('#btnResLeave').onclick=()=>leave();
 $('#mute').onclick=()=>{muted=!muted;$('#mute').textContent=muted?'🔇':'🔊'};
 $('#btnShare').onclick=async()=>{const url=location.origin+location.pathname+'#'+net.code;try{if(navigator.share&&coarse){await navigator.share({title:'DERRAPE',text:'Métete a mi carrera de DERRAPE, código '+net.code,url});return}await navigator.clipboard.writeText(url);toast('¡Link copiado! Mándalo al grupo')}catch(e){toast('Código: '+net.code)}};
 function addBot(){if(lobby.length>=MAXP)return;const used=lobby.map(l=>l.name);const n=BOTNAMES.find(b=>!used.includes('🤖 '+b))||'Bot';hostAdd('bot'+Math.random().toString(36).slice(2,7),'🤖 '+n,null,true)}
@@ -634,8 +639,8 @@ function endRace(keepScreen){Object.values(karts).forEach(k=>k.remove());karts={
 function onMyFinish(){const r=ranking().indexOf(meK)+1;banner(r===1?'¡GANASTE!':'¡META!',`Llegaste ${r}º · ${fmtT(meK.fin)}`,3.5,r===1?'#ffd23d':'#fff');sfx.win()}
 function hostCheckEnd(){if(raceState!=='race'&&raceState!=='done')return;const ks=Object.values(karts);if(!ks.length)return;
   const humansDone=ks.filter(k=>!k.bot).every(k=>k.fin);const allDone=ks.every(k=>k.fin);
-  if(allDone||(humansDone&&raceT-firstFin>4)||(firstFin&&raceT-firstFin>30))finalizeRace()}
-function finalizeRace(){const r=ranking();const res=r.map((k,i)=>({id:k.id,name:k.name,color:k.color,fin:k.fin,pts:PTS[i]||0}));
+  if(allDone||(humansDone&&raceT-firstFin>2)||(firstFin&&raceT-firstFin>90))finalizeRace()}
+function finalizeRace(){Object.values(karts).forEach(k=>{if(!k.fin)k.fin=raceT+Math.max(0,LAPS*N-k.prog)*SEG/27});const r=ranking();const res=r.map((k,i)=>({id:k.id,name:k.name,color:k.color,fin:k.fin,pts:PTS[i]||0}));
   res.forEach(x=>{const l=lob(x.id);if(l)l.champ=(l.champ||0)+x.pts});
   const msg={t:'res',res,champ:lobby.map(l=>[l.id,l.champ||0])};raceState='results';broadcast(msg);showResults(msg)}
 function showResults(d){raceState='results';
@@ -708,7 +713,9 @@ function updateRace(dt){
     const lap=clamp(Math.floor(meK.prog/N)+1,1,LAPS);$('#lapT').textContent=meK.fin?'¡TERMINASTE!':'VUELTA '+lap+'/'+LAPS;
     $('#timeT').textContent=fmtT(meK.fin||raceT);$('#spd').textContent=Math.round(Math.abs(meK.v)*4.2);
     const ib=$('#itemBox');ib.classList.toggle('empty',!meK.item&&meK.roll<=0);$('#itemE').textContent=meK.roll>0?Object.values(ITEMS)[Math.floor(performance.now()/70)%5]:meK.item?ITEMS[meK.item]:'';
-    drawMini()}
+    drawMini();
+    const lv=$('#live');lv.classList.toggle('hidden',!meK.fin||raceState!=='race');
+    if(meK.fin)$('#liveList').innerHTML=r.map((k,i)=>`<div class="${k===meK?'me':''}">${i+1}º<span class="dot" style="background:${k.color}"></span>${esc(k.name)}<em>${k.fin?fmtT(k.fin):'vuelta '+clamp(Math.floor(k.prog/N)+1,1,LAPS)+'/'+LAPS+'…'}</em></div>`).join('')}
   const lapNow=Math.floor(meK.prog/N)+1;if(lapNow>(meK.lapShown||1)&&lapNow<=LAPS){meK.lapShown=lapNow;banner(lapNow===LAPS?'¡ÚLTIMA VUELTA!':'VUELTA '+lapNow,'',1.6,lapNow===LAPS?'#ff3d81':'#fff');sfx.lap()}
   if(!meK.fin&&raceState==='race'&&Math.abs(meK.v)>4&&Math.cos(wrapA(meK.h-headOf(meK.idx)))<-.3){wrongT+=dt;if(wrongT>1&&bannerT<=0)banner('¡AL REVÉS!','Date la vuelta',.5,'#ff3d81')}else wrongT=0;
   $('#boostfx').classList.toggle('on',meK.boostT>0);
