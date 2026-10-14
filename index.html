@@ -113,7 +113,7 @@ label{display:block;font-size:13px;font-weight:700;color:var(--muted);margin:12p
 <section class="screen" id="home">
   <div class="card">
     <div class="logo">DERRAPE</div>
-    <p class="tag">Carreras de karts 3D con tus panas.<br><b>Derrapa</b> para el turbo, tira misiles, deja cáscaras.</p>
+    <p class="tag">Carreras de karts 3D con tus panas.<br><b>Derrapa</b> para el turbo, tira misiles, deja cáscaras.<br><b>Hasta 8 jugadores por sala</b> (los bots cuentan).</p>
     <label>Tu nombre</label>
     <input class="inp" id="name" maxlength="12" placeholder="Ej: Marco" autocomplete="off">
     <label>Color de tu kart</label>
@@ -134,7 +134,8 @@ label{display:block;font-size:13px;font-weight:700;color:var(--muted);margin:12p
     <div class="codelbl" id="codeLbl">CÓDIGO DE LA SALA</div>
     <div class="code" id="codeBig">····</div>
     <button class="btn b-cyan" id="btnShare" style="font-size:16px;padding:11px">Copiar link para invitar</button>
-    <div class="plist" id="plist"></div>
+    <div class="sub" id="pcount" style="margin-top:14px"></div>
+    <div class="plist" id="plist" style="margin-top:6px"></div>
     <div id="hostCtl">
       <button class="btn b-ghost" id="btnBot">+ Agregar bot</button>
       <button class="btn b-lime" id="btnStart">¡A correr!</button>
@@ -426,6 +427,7 @@ function renderLobby(){
   $('#codeLbl').classList.toggle('hidden',net.practice);$('#btnShare').classList.toggle('hidden',net.practice||!net.code);
   $('#hostCtl').classList.toggle('hidden',!net.isHost);$('#waitMsg').classList.toggle('hidden',net.isHost);
   if(!net.isHost)$('#waitMsg').textContent=raceState!=='none'&&!karts[net.myId]?'Hay una carrera en curso, entras en la siguiente…':'Esperando a que el host arranque…';
+  const full=lobby.length>=MAXP;$('#pcount').innerHTML=`PILOTOS ${lobby.length}/${MAXP}`+(full?' · <span style="color:var(--pink)">SALA LLENA</span>':'');
   const pl=$('#plist');pl.innerHTML='';
   lobby.forEach(l=>{const d=document.createElement('div');d.className='pl';d.innerHTML=`<span class="dot" style="background:${l.color}"></span>${esc(l.name)}<small>${l.id==='host'?'host':l.id===net.myId?'tú':l.bot?'bot':''}</small>`;
     if(net.isHost&&l.bot){const x=document.createElement('button');x.className='x';x.textContent='✕';x.onclick=()=>hostDrop(l.id);d.appendChild(x)}pl.appendChild(d)});
@@ -464,7 +466,7 @@ function joinRoom(code){
   p.on('error',e=>{clearTimeout(to);if(e.type==='peer-unavailable'){$('#homeErr').textContent='No existe la sala '+code;try{p.destroy()}catch(x){}}else if(screen==='home')$('#homeErr').textContent='Error de conexión ('+e.type+')'});
 }
 function clientMsg(d){if(!d||typeof d!=='object')return;
-  if(d.t==='full'){leave();$('#homeErr').textContent='La sala está llena (8 máx.)';return}
+  if(d.t==='full'){leave();$('#homeErr').textContent='La sala está llena: máximo 8 jugadores (contando bots)';return}
   if(d.t==='lobby'){lobby=d.pl;net.code=d.code;$('#homeErr').textContent='';history.replaceState(null,'','#'+d.code);
     Object.keys(karts).forEach(id=>{if(!lob(id)){karts[id].remove();delete karts[id]}});
     if(d.ph==='lobby'){if(raceState!=='none')endRace();show('lobby')}else if(screen==='home')show('lobby');
